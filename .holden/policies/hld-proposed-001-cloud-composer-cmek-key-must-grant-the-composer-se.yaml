@@ -1,0 +1,42 @@
+id: HLD_GCP_485
+name: Cloud Composer CMEK key must grant the Composer service agent Encrypter/Decrypter access
+principle: encryption
+severity: HIGH
+rationale: |
+  Setting config.encryption_config.kms_key_name on a google_composer_environment
+  only tells the environment which key to use — it doesn't grant access to it.
+  Cloud Composer's CMEK provisioning requires the Cloud Composer Service Agent
+  (service-PROJECT_NUMBER@cloudcomposer-accounts.iam.gserviceaccount.com) to
+  hold roles/cloudkms.cryptoKeyEncrypterDecrypter on that key before the
+  environment can be created. HLD_GCP_159 already requires kms_key_name to be
+  set; this policy requires the companion grant that makes it actually work.
+  Without a matching google_kms_crypto_key_iam_member (or _binding) granting
+  that role on the same key, environment creation fails at provisioning time
+  with a permission-denied error referencing the key, even though the
+  Terraform plan itself succeeds and nothing on the
+  google_composer_environment resource surfaces the missing prerequisite.
+remediation: |
+  Grant the Cloud Composer service agent access to the key referenced:
+
+  ```hcl
+  data "google_project" "current" {}
+
+  resource "google_kms_crypto_key_iam_member" "composer_cmek" {
+    crypto_key_id = google_kms_crypto_key.main.id
+    role          = "roles/cloudkms.cryptoKeyEncrypterDecrypter"
+    member        = "serviceAccount:service-${data.google_project.current.number}@cloudcomposer-accounts.iam.gserviceaccount.com"
+  }
+  ```
+resources:
+  google_composer_environment:
+    filter:
+      path: config.encryption_config.kms_key_name
+      not_null: true
+    requires_companion:
+      type: google_kms_crypto_key_iam_member
+      linked_via:
+        from: config.encryption_config.kms_key_name
+        to: crypto_key_id
+      where:
+        path: role
+        equals: roles/cloudkms.cryptoKeyEncrypterDecrypter

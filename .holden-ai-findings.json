@@ -1,0 +1,83 @@
+{
+  "scan_date": "2026-08-09T00:00:00Z",
+  "scan_path": ".",
+  "findings": [
+    {
+      "id": "HOLDEN_AI_001",
+      "status": "fixed",
+      "first_seen": "2026-08-09",
+      "last_seen": "2026-08-09",
+      "unresolved_since": "2026-08-09",
+      "suppression_reason": null,
+      "principle": "network-security",
+      "severity": "HIGH",
+      "confidence": "high",
+      "title": "Composer web server IP allowlist configured as 0.0.0.0/0, negating HLD_GCP_376's protection",
+      "file": "example/examplea/module.composer.tf",
+      "line": 10,
+      "resource": "module.composer (google_composer_environment.main)",
+      "related_resources": [
+        "google_composer_environment.main.tf:14-19 (config.web_server_network_access_control)",
+        "variables.tf:53-61 (var.web_server_allowed_ip_range)"
+      ],
+      "explanation": "HLD_GCP_376 only checks that config.web_server_network_access_control is set (not_null); it can't see the value supplied at the call site. This example instantiates the module with web_server_allowed_ip_range = \"0.0.0.0/0\", so the Airflow web UI - which exposes DAG code, Airflow Connections/Variables (frequently holding credentials), and the ability to trigger DAG runs - is reachable from the entire internet. private_environment_config.enable_private_endpoint = true only privatizes the GKE control-plane endpoint; the web server allowlist is the only network control governing who reaches the UI, and it is set to allow everyone.",
+      "remediation": "In example/examplea/module.composer.tf, set web_server_allowed_ip_range to a specific, narrow CIDR (e.g. a corporate VPN range) instead of 0.0.0.0/0.",
+      "fixable": false
+    },
+    {
+      "id": "HOLDEN_AI_002",
+      "status": "fixed",
+      "first_seen": "2026-08-09",
+      "last_seen": "2026-08-09",
+      "unresolved_since": "2026-08-09",
+      "suppression_reason": null,
+      "principle": "encryption",
+      "severity": "HIGH",
+      "confidence": "high",
+      "title": "CMEK key has no IAM grant for the Composer service agent - environment provisioning will fail",
+      "file": "example/examplea/google_kms_key_ring.tf",
+      "line": 6,
+      "resource": "google_kms_crypto_key.main",
+      "related_resources": [
+        "google_composer_environment.main.tf:6-8 (config.encryption_config.kms_key_name)",
+        "example/examplea/module.composer.tf:6 (kms_key_name = google_kms_crypto_key.main.id)"
+      ],
+      "explanation": "HLD_GCP_159 only checks that kms_key_name is set on the environment; it has no visibility into whether the key's IAM policy actually grants access. Cloud Composer's CMEK provisioning requires the Cloud Composer Service Agent (service-PROJECT_NUMBER@cloudcomposer-accounts.iam.gserviceaccount.com) to hold roles/cloudkms.cryptoKeyEncrypterDecrypter on the key. No google_kms_crypto_key_iam_member or _binding exists anywhere in this repo for google_kms_crypto_key.main, so `terraform apply` will succeed at the plan/resource-creation level but Composer environment provisioning itself will fail with a permission-denied error referencing the key. This exact companion-grant pattern already has dedicated holden policies for Cloud SQL, GCS, Filestore, Healthcare, Document AI, Cloud Run, Workflows, and Pub/Sub (e.g. HLD_GCP_453) - Cloud Composer is a gap in that family.",
+      "remediation": "Add a companion IAM grant in example/examplea/google_kms_key_ring.tf:\n\ndata \"google_project\" \"current\" {}\n\nresource \"google_kms_crypto_key_iam_member\" \"composer_cmek\" {\n  crypto_key_id = google_kms_crypto_key.main.id\n  role          = \"roles/cloudkms.cryptoKeyEncrypterDecrypter\"\n  member        = \"serviceAccount:service-${data.google_project.current.number}@cloudcomposer-accounts.iam.gserviceaccount.com\"\n}",
+      "fixable": true,
+      "fix": "data \"google_project\" \"current\" {}\n\nresource \"google_kms_crypto_key_iam_member\" \"composer_cmek\" {\n  crypto_key_id = google_kms_crypto_key.main.id\n  role          = \"roles/cloudkms.cryptoKeyEncrypterDecrypter\"\n  member        = \"serviceAccount:service-${data.google_project.current.number}@cloudcomposer-accounts.iam.gserviceaccount.com\"\n}"
+    },
+    {
+      "id": "HOLDEN_AI_003",
+      "status": "open",
+      "first_seen": "2026-08-09",
+      "last_seen": "2026-08-09",
+      "unresolved_since": "2026-08-09",
+      "suppression_reason": null,
+      "principle": "maintainability",
+      "severity": "MEDIUM",
+      "confidence": "medium",
+      "title": "Composer service account ID is hardcoded, not parameterized by var.name - module can't be safely instantiated twice in one project",
+      "file": "iam.tf",
+      "line": 2,
+      "resource": "google_service_account.composer",
+      "related_resources": [
+        "variables.tf:1-9 (var.name)"
+      ],
+      "explanation": "variables.tf defines var.name specifically so each Composer environment instantiated by this module has a distinct identity, but iam.tf:2 hardcodes account_id = \"composer-env-account\" instead of deriving it from var.name. GCP service account IDs must be unique per project, so instantiating this reusable module a second time in the same project (a second environment, or a staging+prod pair) will fail with an 'already exists' error on the second apply. This is only visible by reading variables.tf and iam.tf together - a rule checking iam.tf in isolation sees a syntactically unremarkable service account.",
+      "remediation": "Derive account_id from var.name (e.g. account_id = \"composer-${var.name}\"), and add a format-constraining validation block to var.name in variables.tf (lowercase alphanumeric + hyphens, 6-30 chars, starts with a letter) so the derived ID is always a valid GCP service account ID.",
+      "fixable": false
+    }
+  ],
+  "suggested_policies": [
+    {
+      "rationale": "coverage_by_type[\"google_composer_environment\"] lists only HLD_GCP_100/158/159/374/375/376 - none checks that a companion google_kms_crypto_key_iam_member/_binding grants the Composer service agent access to the CMEK key referenced by encryption_config.kms_key_name. This exact requires_companion pattern is already established for eight other GCP resource types (google_sql_database_instance/HLD_GCP_453, google_storage_bucket, google_filestore_instance, healthcare datasets, Document AI processors, Cloud Run, Workflows, Pub/Sub topics) - Composer is a gap in an otherwise-consistent family, and the pattern fires correctly on any Terraform using google_composer_environment with CMEK, not just this repo. Validated with `holden validate-policy` (OK) and test-scanned against this repo: correctly returns UNKNOWN (not a false PASS) since the module boundary /kms_key_name = var.kms_key_name/ isn't statically resolvable without a --plan file - matches the documented behavior of the sibling CMEK-companion policies.",
+      "yaml": "id: HLD_PROPOSED_001\nname: Cloud Composer CMEK key must grant the Composer service agent Encrypter/Decrypter access\nprinciple: encryption\nseverity: HIGH\nrationale: |\n  Setting config.encryption_config.kms_key_name on a google_composer_environment\n  only tells the environment which key to use — it doesn't grant access to it.\n  Cloud Composer's CMEK provisioning requires the Cloud Composer Service Agent\n  (service-PROJECT_NUMBER@cloudcomposer-accounts.iam.gserviceaccount.com) to\n  hold roles/cloudkms.cryptoKeyEncrypterDecrypter on that key before the\n  environment can be created. HLD_GCP_159 already requires kms_key_name to be\n  set; this policy requires the companion grant that makes it actually work.\n  Without a matching google_kms_crypto_key_iam_member (or _binding) granting\n  that role on the same key, environment creation fails at provisioning time\n  with a permission-denied error referencing the key, even though the\n  Terraform plan itself succeeds and nothing on the\n  google_composer_environment resource surfaces the missing prerequisite.\nremediation: |\n  Grant the Cloud Composer service agent access to the key referenced:\n\n  ```hcl\n  data \"google_project\" \"current\" {}\n\n  resource \"google_kms_crypto_key_iam_member\" \"composer_cmek\" {\n    crypto_key_id = google_kms_crypto_key.main.id\n    role          = \"roles/cloudkms.cryptoKeyEncrypterDecrypter\"\n    member        = \"serviceAccount:service-${data.google_project.current.number}@cloudcomposer-accounts.iam.gserviceaccount.com\"\n  }\n  ```\nresources:\n  google_composer_environment:\n    filter:\n      path: config.encryption_config.kms_key_name\n      not_null: true\n    requires_companion:\n      type: google_kms_crypto_key_iam_member\n      linked_via:\n        from: config.encryption_config.kms_key_name\n        to: crypto_key_id\n      where:\n        path: role\n        equals: roles/cloudkms.cryptoKeyEncrypterDecrypter\n"
+    },
+    {
+      "rationale": "HLD_GCP_376 (coverage_by_type[\"google_composer_environment\"]) only checks config.web_server_network_access_control is not_null - it never inspects what the allowed_ip_range entries actually permit. A companion policy that fails specifically on a 0.0.0.0/0 entry closes that gap without duplicating HLD_GCP_376, mirrors existing 'don't allow 0.0.0.0/0' checks elsewhere in the catalog (e.g. security-group-style rules), and fires correctly on any Terraform using google_composer_environment, not just this repo. Validated with `holden validate-policy` (OK). Test-scanned against this repo: currently PASSes at the module's own resource declaration because web_server_allowed_ip_range is a var reference at that scope and holden's static resolver doesn't chase it through the module call site without a --plan file - the same documented 'variables / cross-module' blind spot noted for holden-ai-review itself, not a defect in the policy's DSL expression.",
+      "yaml": "id: HLD_PROPOSED_002\nname: Cloud Composer web server IP allowlist must not permit unrestricted access\nprinciple: network-security\nseverity: HIGH\nrationale: |\n  HLD_GCP_376 requires web_server_network_access_control to be set, but only\n  checks that the block exists — it does not check what the allowed_ip_range\n  entries actually allow. Configuring allowed_ip_range with value = \"0.0.0.0/0\"\n  satisfies the existence check while granting every IPv4 address on the\n  internet access to the Airflow web UI, which exposes DAG code, Airflow\n  Connections/Variables (which frequently hold credentials), and the ability\n  to trigger DAG runs. The network-access-control feature only provides the\n  restriction its name implies when the configured ranges are actually\n  narrower than the entire internet.\nremediation: |\n  Scope allowed_ip_range.value to a specific, narrower CIDR range, not 0.0.0.0/0:\n\n  ```hcl\n  resource \"google_composer_environment\" \"main\" {\n    config {\n      web_server_network_access_control {\n        allowed_ip_range {\n          value       = \"203.0.113.0/24\"\n          description = \"corp office range\"\n        }\n      }\n    }\n  }\n  ```\nresources:\n  google_composer_environment:\n    path: config.web_server_network_access_control.allowed_ip_range\n    not_any:\n      path: value\n      cidr_prefix_lte: 0\n"
+    }
+  ],
+  "suggested_suppressions": []
+}

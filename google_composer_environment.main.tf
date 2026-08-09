@@ -1,6 +1,6 @@
 resource "google_composer_environment" "main" {
   name   = var.name
-  region = "europe-west2"
+  region = var.region
 
   config {
     encryption_config {
@@ -11,6 +11,13 @@ resource "google_composer_environment" "main" {
       enable_private_endpoint = true
     }
 
+    web_server_network_access_control {
+      allowed_ip_range {
+        value       = var.web_server_allowed_ip_range
+        description = var.web_server_allowed_ip_description
+      }
+    }
+
     recovery_config {
       scheduled_snapshots_config {
         enabled = true
@@ -18,8 +25,10 @@ resource "google_composer_environment" "main" {
     }
 
     node_config {
-      network    = var.network
-      subnetwork = var.subnetwork
+      network         = var.network
+      subnetwork      = var.subnetwork
+      service_account = google_service_account.composer.email
     }
   }
 }
+

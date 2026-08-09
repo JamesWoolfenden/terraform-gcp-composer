@@ -1,0 +1,35 @@
+id: HLD_GCP_486
+name: Cloud Composer web server IP allowlist must not permit unrestricted access
+principle: network-security
+severity: HIGH
+rationale: |
+  HLD_GCP_376 requires web_server_network_access_control to be set, but only
+  checks that the block exists — it does not check what the allowed_ip_range
+  entries actually allow. Configuring allowed_ip_range with value = "0.0.0.0/0"
+  satisfies the existence check while granting every IPv4 address on the
+  internet access to the Airflow web UI, which exposes DAG code, Airflow
+  Connections/Variables (which frequently hold credentials), and the ability
+  to trigger DAG runs. The network-access-control feature only provides the
+  restriction its name implies when the configured ranges are actually
+  narrower than the entire internet.
+remediation: |
+  Scope allowed_ip_range.value to a specific, narrower CIDR range, not 0.0.0.0/0:
+
+  ```hcl
+  resource "google_composer_environment" "main" {
+    config {
+      web_server_network_access_control {
+        allowed_ip_range {
+          value       = "203.0.113.0/24"
+          description = "corp office range"
+        }
+      }
+    }
+  }
+  ```
+resources:
+  google_composer_environment:
+    path: config.web_server_network_access_control.allowed_ip_range
+    not_any:
+      path: value
+      cidr_prefix_lte: 0
