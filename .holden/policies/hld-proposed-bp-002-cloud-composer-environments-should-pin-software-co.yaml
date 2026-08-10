@@ -1,0 +1,25 @@
+id: HLD_GCP_488
+name: Cloud Composer environments should pin software_config.image_version
+principle: repeatability
+severity: LOW
+rationale: |
+  image_version is optional and computed in the provider schema — when
+  config.software_config (or image_version within it) is omitted, GCP
+  selects its current default Composer/Airflow image at creation time.
+  Two applies of the same Terraform at different points in time can then
+  provision meaningfully different Airflow versions, producing DAG
+  compatibility drift between environments that should be identical.
+remediation: |
+  ```hcl
+  resource "google_composer_environment" "main" {
+    config {
+      software_config {
+        image_version = "composer-2-airflow-2"
+      }
+    }
+  }
+  ```
+resources:
+  google_composer_environment:
+    path: config.software_config.image_version
+    not_null: true

@@ -1,6 +1,6 @@
 resource "google_service_account" "composer" {
-  account_id   = "composer-env-account"
-  display_name = "Test Service Account for Managed Airflow Environment"
+  account_id   = "composer-${var.name}"
+  display_name = "Service Account for the ${var.name} Managed Airflow Environment"
 }
 
 resource "google_project_iam_member" "composer_worker" {
@@ -8,4 +8,3 @@ resource "google_project_iam_member" "composer_worker" {
   role    = "roles/composer.worker"
   member  = "serviceAccount:${google_service_account.composer.email}"
 }
-

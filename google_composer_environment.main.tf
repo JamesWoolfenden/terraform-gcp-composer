@@ -11,6 +11,16 @@ resource "google_composer_environment" "main" {
       enable_private_endpoint = true
     }
 
+    software_config {
+      image_version = var.image_version
+    }
+
+    maintenance_window {
+      start_time = var.maintenance_window_start_time
+      end_time   = var.maintenance_window_end_time
+      recurrence = var.maintenance_window_recurrence
+    }
+
     web_server_network_access_control {
       allowed_ip_range {
         value       = var.web_server_allowed_ip_range
@@ -31,4 +41,3 @@ resource "google_composer_environment" "main" {
     }
   }
 }
-

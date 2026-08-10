@@ -3,8 +3,8 @@ variable "name" {
   description = "Name of the Composer environment"
 
   validation {
-    condition     = length(trimspace(var.name)) > 0
-    error_message = "var.name must be a non-empty string"
+    condition     = can(regex("^[a-z][a-z0-9-]{0,20}$", var.name))
+    error_message = "var.name must be 1-21 characters, lowercase alphanumeric or hyphens, starting with a letter — it is used to derive the composer-${var.name} service account ID, which GCP limits to 30 characters."
   }
 }
 
@@ -77,5 +77,46 @@ variable "project" {
   validation {
     condition     = length(trimspace(var.project)) > 0
     error_message = "var.project must be a non-empty string"
+  }
+}
+
+variable "maintenance_window_start_time" {
+  type        = string
+  description = "Start time (RFC3339) of the first recurrence of the maintenance window"
+
+  validation {
+    condition     = length(trimspace(var.maintenance_window_start_time)) > 0
+    error_message = "var.maintenance_window_start_time must be a non-empty string"
+  }
+}
+
+variable "maintenance_window_end_time" {
+  type        = string
+  description = "End time (RFC3339) of the maintenance window, used only to calculate its duration"
+
+  validation {
+    condition     = length(trimspace(var.maintenance_window_end_time)) > 0
+    error_message = "var.maintenance_window_end_time must be a non-empty string"
+  }
+}
+
+variable "maintenance_window_recurrence" {
+  type        = string
+  description = "Maintenance window recurrence, RFC-5545 RRULE subset (e.g. \"FREQ=WEEKLY;BYDAY=SA\")"
+
+  validation {
+    condition     = length(trimspace(var.maintenance_window_recurrence)) > 0
+    error_message = "var.maintenance_window_recurrence must be a non-empty string"
+  }
+}
+
+variable "image_version" {
+  type        = string
+  description = "Composer/Airflow image version, e.g. \"composer-2-airflow-2\""
+  default     = "composer-2-airflow-2"
+
+  validation {
+    condition     = length(trimspace(var.image_version)) > 0
+    error_message = "var.image_version must be a non-empty string"
   }
 }

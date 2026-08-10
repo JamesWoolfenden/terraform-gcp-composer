@@ -1,0 +1,25 @@
+id: HLD_GCP_487
+name: Cloud Composer environments should define a maintenance window
+principle: reliability
+severity: MEDIUM
+rationale: |
+  Without config.maintenance_window, Cloud Composer can apply environment
+  maintenance and version updates at any time, including business hours,
+  causing scheduler/web server restarts and brief DAG-processing
+  interruptions with no predictable window for on-call teams to expect them.
+remediation: |
+  ```hcl
+  resource "google_composer_environment" "main" {
+    config {
+      maintenance_window {
+        start_time = "2025-01-05T01:00:00Z"
+        end_time   = "2025-01-05T05:00:00Z"
+        recurrence = "FREQ=WEEKLY;BYDAY=SA"
+      }
+    }
+  }
+  ```
+resources:
+  google_composer_environment:
+    path: config.maintenance_window
+    not_null: true

@@ -9,4 +9,8 @@ module "composer" {
   project                           = google_compute_network.private.project
   web_server_allowed_ip_range       = "203.0.113.0/24"
   web_server_allowed_ip_description = "Example corp office range (RFC 5737 documentation range)"
+  maintenance_window_start_time     = "2025-01-05T01:00:00Z"
+  maintenance_window_end_time       = "2025-01-05T05:00:00Z"
+  maintenance_window_recurrence     = "FREQ=WEEKLY;BYDAY=SA"
+  image_version                     = "composer-2-airflow-2"
 }
