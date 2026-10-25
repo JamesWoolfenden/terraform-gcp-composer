@@ -120,3 +120,14 @@ variable "image_version" {
     error_message = "var.image_version must be a non-empty string"
   }
 }
+
+
+variable "project_number" {
+  type        = number
+  description = "GCP project number where the Composer environment will be created"
+
+  validation {
+    condition     = var.project_number > 0
+    error_message = "var.project_number must be a positive integer"
+  }
+}

@@ -14,6 +14,8 @@ resource "google_project_iam_custom_role" "terraform_pike" {
   title       = "terraform_pike"
   description = "A user with least privileges"
   permissions = [
+    "cloudkms.cryptoKeys.getIamPolicy",
+    "cloudkms.cryptoKeys.setIamPolicy",
     "composer.environments.create",
     "composer.environments.delete",
     "composer.environments.get",
@@ -23,6 +25,8 @@ resource "google_project_iam_custom_role" "terraform_pike" {
     "iam.serviceAccounts.create",
     "iam.serviceAccounts.delete",
     "iam.serviceAccounts.get",
+    "iam.serviceAccounts.getIamPolicy",
+    "iam.serviceAccounts.setIamPolicy",
     "iam.serviceAccounts.update",
     "resourcemanager.projects.getIamPolicy",
     "resourcemanager.projects.setIamPolicy"
@@ -36,9 +40,11 @@ resource "google_project_iam_custom_role" "terraform_pike_plan" {
   title       = "terraform_pike_plan"
   description = "A user with least privileges"
   permissions = [
+    "cloudkms.cryptoKeys.getIamPolicy",
     "composer.environments.get",
     "composer.operations.get",
     "iam.serviceAccounts.get",
+    "iam.serviceAccounts.getIamPolicy",
     "resourcemanager.projects.getIamPolicy"
   ]
 }

@@ -4,9 +4,10 @@ resource "google_kms_key_ring" "main" {
 }
 
 resource "google_kms_crypto_key" "main" {
-  name            = "composer-key"
-  key_ring        = google_kms_key_ring.main.id
-  rotation_period = "5400000s"
+  name                       = "composer-key"
+  key_ring                   = google_kms_key_ring.main.id
+  rotation_period            = "5400000s"
+  destroy_scheduled_duration = "604800s"
 
   lifecycle {
     prevent_destroy = true

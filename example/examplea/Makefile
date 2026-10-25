@@ -23,6 +23,7 @@ plan:
 planned: init
 	terraform plan -out tf.plan
 	terraform show -json tf.plan  > tf.json
+	holden scan . --plan tf.json
 
 p:
 	terraform plan -refresh=true
@@ -39,14 +40,14 @@ check: init
 	terraform plan -detailed-exitcode
 
 destroy: init
-	terraform destroy -force
+	terraform destroy --auto-approve
 
 docs:
 	terraform-docs md . > README.md
 
 valid:
 	-terraform fmt -recursive
-	-holden scan .
+	-holden scan
 
 
 target:

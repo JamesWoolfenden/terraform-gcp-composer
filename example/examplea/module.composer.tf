@@ -7,6 +7,7 @@ module "composer" {
   network                           = google_compute_network.private.self_link
   subnetwork                        = google_compute_subnetwork.environment.self_link
   project                           = google_compute_network.private.project
+  project_number                    = data.google_project.current.number
   web_server_allowed_ip_range       = "203.0.113.0/24"
   web_server_allowed_ip_description = "Example corp office range (RFC 5737 documentation range)"
   maintenance_window_start_time     = "2025-01-05T01:00:00Z"
